@@ -100,38 +100,42 @@ class CallConversationAgent(
 
     private fun buildOpeningGreeting(): String {
         val consentNote = if (informCaller)
-            " Please note that this call is being handled by an AI assistant. "
+            " Please note this call is handled by an AI assistant. "
         else ""
 
         return when {
             languageTag.startsWith("kn") ->
-                "Namaskara. Naanu Jarvis, $userName avara AI assistant.$consentNote " +
-                "Avaru eeaga available aagilla. Neevu yake call madidira?"
+                "Namaskara! Ullas avarige call madiddakke dhanyavaada. Naanu Jarvis, Ullas avara AI calling assistant.$consentNote " +
+                "Avaru iga busy iddaare. Naanu nimage hege sahaya madli, matthu yake call madidira?"
             languageTag.startsWith("hi") ->
-                "Namaste. Main Jarvis hoon, $userName ka AI assistant.$consentNote " +
-                "Woh abhi available nahi hain. Aap kyon call kar rahe hain?"
+                "Namaste! Ullas ko call karne ke liye dhanyavaad. Main Jarvis hoon, Ullas ka AI calling assistant.$consentNote " +
+                "Woh abhi busy hain. Main aapki kya madad kar sakta hoon, aur aapne kis silsile mein call kiya hai?"
             else ->
-                "Hello. I am Jarvis, $userName's AI assistant.$consentNote " +
-                "They are currently unavailable. How may I help you, and why are you calling?"
+                "Hello! Thank you for calling Ullas. I am Jarvis, Ullas's AI calling assistant.$consentNote " +
+                "They are currently unavailable. How may I assist you today, and what message would you like me to pass along?"
         }
     }
 
     private fun generateResponse(callerText: String): String {
         val lower = callerText.lowercase()
 
-        // Very simple rule-based responses for the prototype.
-        // In production this would use the Gemini REST API with a system prompt.
         return when {
-            lower.contains("urgent") || lower.contains("emergency") ->
+            lower.contains("urgent") || lower.contains("emergency") || lower.contains("hospital") || lower.contains("accident") -> {
+                scope.launch { delay(5000); endConversation("Urgent request processed") }
                 buildUrgentResponse()
-            lower.contains("message") || lower.contains("tell") ->
-                buildMessageAckResponse()
-            lower.contains("when") || lower.contains("available") ->
-                buildAvailabilityResponse()
-            lower.contains("bye") || lower.contains("ok thanks") || lower.contains("ok thank you") ->
+            }
+            lower.contains("bye") || lower.contains("ok thanks") || lower.contains("ok thank you") || lower.contains("that's all") || lower.contains("thats all") -> {
+                scope.launch { delay(4000); endConversation("Caller said farewell") }
                 buildFarewellResponse()
-            callerTurnCount >= 5 ->
+            }
+            lower.contains("message") || lower.contains("tell") || lower.contains("inform") || lower.contains("say") || lower.contains("note") ->
+                buildMessageAckResponse()
+            lower.contains("when") || lower.contains("available") || lower.contains("free") || lower.contains("call back") ->
+                buildAvailabilityResponse()
+            callerTurnCount >= 4 -> {
+                scope.launch { delay(4000); endConversation("Max turns reached") }
                 buildWrapUpResponse()
+            }
             else ->
                 buildGenericAckResponse(callerText)
         }
@@ -139,56 +143,56 @@ class CallConversationAgent(
 
     private fun buildUrgentResponse(): String = when {
         languageTag.startsWith("kn") ->
-            "Arthamaayitu. Neevu tumba urgent antha heltidira. Naanu $userName avrige takshaNav notify madtini. Neevu yenu helidira antha summary madtini."
+            "Arthamaayitu. EE vishaya tumba urgent antha nanu note madidini. Ullas avrige takshana urgent alert kaluhistini. Dhanyavaada."
         languageTag.startsWith("hi") ->
-            "Samajh gaya. Yeh kaafi urgent lag raha hai. Main $userName ko turant notify karunga. Apna message bata dijiye."
+            "Samajh gaya. Yeh kaafi zaruri maamla hai. Main Ullas ko abhi urgent alert bhej raha hoon. Shukriya."
         else ->
-            "I understand this is urgent. I will immediately notify $userName with the details. Please continue — what would you like me to tell them?"
+            "I understand this is urgent. I have flagged your request with high priority and sent an immediate alert to Ullas. Thank you."
     }
 
     private fun buildMessageAckResponse(): String = when {
         languageTag.startsWith("kn") ->
-            "Sari, nanu note madtini. Illade, innenu yenu heli?"
+            "Kanditha, nanu nimma message na poorthiyagi note madikondiddini. Ullas avarige innenu helabeka?"
         languageTag.startsWith("hi") ->
-            "Bilkul, main note kar leta hoon. Aur kuch kehna chahte hain?"
+            "Ji bilkul, main aapka message achhe se note kar chuka hoon. Kya Ullas ke liye aur koi jankari bhejni hai?"
         else ->
-            "Understood, I'll pass that message along. Is there anything else you'd like to add?"
+            "Certainly, I have carefully recorded your message. Is there any additional detail you would like me to convey to Ullas?"
     }
 
     private fun buildAvailabilityResponse(): String = when {
         languageTag.startsWith("kn") ->
-            "Nanu $userName avrige helidaga, avaru nimage ASAP call madtaare."
+            "Ullas avaru free aaddaga nimage takshana call back madtini antha helidare. Nanu avarige remind madtini."
         languageTag.startsWith("hi") ->
-            "Main $userName ko bataunga. Woh aapko jald se jald call karenge."
+            "Jaise hi Ullas free honge, woh aapko jald se jald call back karenge. Main unhe remind kar dunga."
         else ->
-            "I'll let $userName know, and they will call you back as soon as possible."
+            "Ullas will be notified immediately, and they will return your call as soon as they are free."
     }
 
     private fun buildFarewellResponse(): String = when {
         languageTag.startsWith("kn") ->
-            "Sari, dhanyavaada. $userName avrige nimage message tattisthini."
+            "Call madiddakke tumba dhanyavaada! Nanu nimma message na Ullas avarige thalupistini. Olleyadagali, goodbye!"
         languageTag.startsWith("hi") ->
-            "Theek hai, shukriya. Main $userName ko aapka message bata dunga."
+            "Call karne ke liye bahut dhanyavaad! Main aapka message Ullas tak pahuncha dunga. Aapka din shubh ho, goodbye!"
         else ->
-            "Thank you for calling. I'll make sure $userName gets your message. Have a good day."
+            "Thank you very much for calling! I will ensure Ullas receives your complete message right away. Have a wonderful day, goodbye!"
     }
 
     private fun buildWrapUpResponse(): String = when {
         languageTag.startsWith("kn") ->
-            "Nanu nimma message note madidini. $userName avrige helidaga avaru call madtaare. Dhanyavaada."
+            "Nanu ella vishayavannu note madikondiddini matthu Ullas avarige notify madidini. Call madiddakke dhanyavaada, goodbye!"
         languageTag.startsWith("hi") ->
-            "Main sab note kar chuka hoon. $userName aapko call karenge. Shukriya."
+            "Main aapki saari baatein note kar chuka hoon aur Ullas ko notify kar diya hai. Call karne ke liye shukriya, goodbye!"
         else ->
-            "I have noted everything you've shared. I'll pass it all to $userName. Thank you for your patience."
+            "I have noted all your details and notified Ullas. Thank you for calling our AI customer care agent, goodbye!"
     }
 
     private fun buildGenericAckResponse(text: String): String = when {
         languageTag.startsWith("kn") ->
-            "Arthamaayitu. Innenu yenu heli?"
+            "Arthamaayitu. Ullas avarige sariyada summary kodalu, innenu vishaya helabeka?"
         languageTag.startsWith("hi") ->
-            "Samajh gaya. Aur kuch?"
+            "Ji samajh gaya. Ullas ko sahi summary dene ke liye, kya aap thoda aur bata sakte hain?"
         else ->
-            "I see. Could you tell me more, so I can give $userName an accurate summary?"
+            "Understood. To help me give Ullas an accurate summary of your call, could you share a bit more detail?"
     }
 
     private fun speakAndThenListen(text: String, onReadyToListen: () -> Unit) {
