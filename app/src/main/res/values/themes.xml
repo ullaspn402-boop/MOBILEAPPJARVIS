@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Do not use Theme.SplashScreen here. It is a common instant-close crash
+         on sideloaded APKs (Android 12+ native splash renderer / AppCompat mismatch). -->
+    <style name="Theme.MyApplication" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:statusBarColor">@color/jarvis_splash_bg</item>
+        <item name="android:navigationBarColor">@color/jarvis_splash_bg</item>
+        <item name="android:windowBackground">@color/jarvis_splash_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowDisablePreview">false</item>
+    </style>
+</resources>

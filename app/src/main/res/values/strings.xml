@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">JARVIS</string>
+    <string name="startup_safe_message">JARVIS is starting…\nIf this stays on screen, close the app and open it again.</string>
+</resources>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Keep Android 12+ on the same non-splash theme. Platform splash icons
+         (android:windowSplashScreenAnimatedIcon) have caused SIGSEGV / instant close. -->
+    <style name="Theme.MyApplication" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:statusBarColor">@color/jarvis_splash_bg</item>
+        <item name="android:navigationBarColor">@color/jarvis_splash_bg</item>
+        <item name="android:windowBackground">@color/jarvis_splash_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

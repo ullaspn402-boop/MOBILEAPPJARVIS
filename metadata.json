@@ -1,0 +1,6 @@
+{
+  "name": "JARVIS",
+  "description": "Production-Scale Personal AI Voice Agent on Android — ULLAS Architecture with Server-Side Gemini Gateway, Token Bucket Rate Limiting, Local Command Fast-Path, and Live Telemetry.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
