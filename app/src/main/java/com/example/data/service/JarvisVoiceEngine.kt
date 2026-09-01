@@ -108,7 +108,17 @@ class JarvisVoiceEngine(
             Log.i(tag, "Initializing TextToSpeech engine...")
             textToSpeech = TextToSpeech(context, this)
         } catch (e: Throwable) {
-            Log.e(tag, "TextToSpeech init failed", e)
+            Log.e(tag, "Default TextToSpeech init failed — trying Google TTS engine", e)
+            tryGoogleTtsFallback()
+        }
+    }
+
+    private fun tryGoogleTtsFallback() {
+        try {
+            Log.i(tag, "Attempting Google TTS engine fallback (com.google.android.tts)...")
+            textToSpeech = TextToSpeech(context, this, "com.google.android.tts")
+        } catch (e: Throwable) {
+            Log.e(tag, "Google TTS engine fallback failed", e)
             _isTtsReady.value = false
         }
     }
@@ -122,7 +132,7 @@ class JarvisVoiceEngine(
                 textToSpeech?.setPitch(voicePitch)
                 textToSpeech?.setSpeechRate(voiceSpeed)
 
-                // Use STREAM_MUSIC so voice is always audible (works even with ringer silent)
+                // Use STREAM_MUSIC so voice is always audible
                 try {
                     val audioAttributes = android.media.AudioAttributes.Builder()
                         .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
@@ -164,12 +174,12 @@ class JarvisVoiceEngine(
             } else {
                 Log.e(tag, "❌ TTS initialization failed with status code: $status")
                 _isTtsReady.value = false
-                // Retry once after 2 seconds
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                    Log.w(tag, "Retrying TTS initialization...")
+                // Try fallback to Google TTS package if default engine failed
+                if (textToSpeech?.defaultEngine != "com.google.android.tts") {
+                    Log.w(tag, "Retrying TTS with Google TTS package...")
                     textToSpeech = null
-                    initTts()
-                }, 2000)
+                    tryGoogleTtsFallback()
+                }
             }
         } catch (e: Throwable) {
             _isTtsReady.value = false
@@ -359,10 +369,17 @@ class JarvisVoiceEngine(
     private fun speakInternal(text: String) {
         try {
             val utteranceId = "JARVIS_${System.currentTimeMillis()}"
-            Log.i(tag, "🔊 Speaking: $text")
-            val result = textToSpeech?.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+            // Clean markdown formatting (stars, hashtags, backticks, brackets) so TTS speaks natural sentences
+            val cleanText = text
+                .replace(Regex("<[^>]*>"), "")
+                .replace(Regex("\\*\\*|\\*|_|#|`|\\[.*?\\]\\(.*?\\)"), "")
+                .trim()
+
+            val textToUtter = if (cleanText.isNotBlank()) cleanText else text
+            Log.i(tag, "🔊 Speaking: $textToUtter")
+            val result = textToSpeech?.speak(textToUtter, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
             if (result != TextToSpeech.SUCCESS) {
-                Log.e(tag, "❌ TextToSpeech.speak() returned failure code $result for: \"$text\"")
+                Log.e(tag, "❌ TextToSpeech.speak() returned failure code $result for: \"$textToUtter\"")
                 _isSpeaking.value = false
                 val cb = activeUtteranceCallback
                 activeUtteranceCallback = null
