@@ -409,15 +409,24 @@ class SmartCallService : Service() {
 
         acceptCallProgrammatically()
 
-        // AUDIO ROUTING FIX: Use MODE_IN_COMMUNICATION (VoIP mode) so TTS audio
-        // goes through the phone speaker AND is captured by the mic, which sends
-        // it to the caller over the cellular uplink. This is the correct approach
-        // for non-default-dialer apps to route audio to the caller.
+        // AUDIO ROUTING & VOLUME BOOST: Use MODE_IN_COMMUNICATION + speakerphone ON
+        // and set STREAM_VOICE_CALL and STREAM_MUSIC to maximum volume so the caller
+        // hears the AI agent loud and clear over the phone line connection.
         try {
             val audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-            audioManager?.mode = AudioManager.MODE_IN_COMMUNICATION
-            audioManager?.isSpeakerphoneOn = true  // Speaker ON so mic captures TTS
-            Log.i(tag, "🔊 Audio mode set to IN_COMMUNICATION + speakerphone ON for caller-side audio")
+            if (audioManager != null) {
+                audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+                audioManager.isSpeakerphoneOn = true
+
+                // Maximize voice call and music stream volumes for clear audio uplink
+                val maxVoiceVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL)
+                audioManager.setStreamVolume(AudioManager.STREAM_VOICE_CALL, maxVoiceVol, 0)
+
+                val maxMusicVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, maxMusicVol, 0)
+
+                Log.i(tag, "🔊 Audio mode set to IN_COMMUNICATION + speakerphone ON at MAX volume (Voice: $maxVoiceVol, Music: $maxMusicVol)")
+            }
         } catch (e: Throwable) {
             Log.w(tag, "Failed setting audio mode for Jarvis answer", e)
         }
