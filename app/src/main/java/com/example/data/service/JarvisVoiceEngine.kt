@@ -187,12 +187,13 @@ class JarvisVoiceEngine(
         }
     }
 
+    private var isInCallMode = false
+
     fun setInCallAudioAttributes(inCall: Boolean) {
+        isInCallMode = inCall
         try {
             val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
             if (inCall) {
-                // MODE_IN_COMMUNICATION is correct for non-default-dialer VoIP apps.
-                // MODE_IN_CALL is reserved for the system telephony stack only.
                 audioManager?.mode = AudioManager.MODE_IN_COMMUNICATION
                 audioManager?.isSpeakerphoneOn = true
                 val audioAttributes = android.media.AudioAttributes.Builder()
@@ -200,7 +201,7 @@ class JarvisVoiceEngine(
                     .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
                     .build()
                 textToSpeech?.setAudioAttributes(audioAttributes)
-                Log.i(tag, "🔊 TTS AudioAttributes set to USAGE_VOICE_COMMUNICATION (MODE_IN_COMMUNICATION) for live call")
+                Log.i(tag, "🔊 TTS AudioAttributes set to USAGE_VOICE_COMMUNICATION for active phone call")
             } else {
                 audioManager?.isSpeakerphoneOn = false
                 audioManager?.mode = AudioManager.MODE_NORMAL
@@ -376,8 +377,18 @@ class JarvisVoiceEngine(
                 .trim()
 
             val textToUtter = if (cleanText.isNotBlank()) cleanText else text
-            Log.i(tag, "🔊 Speaking: $textToUtter")
-            val result = textToSpeech?.speak(textToUtter, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+            Log.i(tag, "🔊 Speaking: $textToUtter (inCallMode=$isInCallMode)")
+
+            val params = Bundle().apply {
+                if (isInCallMode) {
+                    putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_VOICE_CALL)
+                } else {
+                    putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_MUSIC)
+                }
+            }
+
+            @Suppress("DEPRECATION")
+            val result = textToSpeech?.speak(textToUtter, TextToSpeech.QUEUE_FLUSH, params, utteranceId)
             if (result != TextToSpeech.SUCCESS) {
                 Log.e(tag, "❌ TextToSpeech.speak() returned failure code $result for: \"$textToUtter\"")
                 _isSpeaking.value = false
