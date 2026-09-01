@@ -81,6 +81,12 @@ class JarvisInCallService : InCallService() {
         try {
             if (call.state == Call.STATE_RINGING) {
                 call.answer(0)
+                try {
+                    setAudioRoute(android.telecom.CallAudioState.ROUTE_SPEAKER)
+                    Log.i(tag, "🔊 Set audio route to ROUTE_SPEAKER via InCallService")
+                } catch (e: Throwable) {
+                    Log.w(tag, "Could not set ROUTE_SPEAKER on InCallService", e)
+                }
                 Log.i(tag, "Call answered via InCallService")
             }
         } catch (e: Throwable) {

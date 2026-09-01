@@ -431,14 +431,30 @@ class SmartCallService : Service() {
             Log.w(tag, "Failed setting audio mode for Jarvis answer", e)
         }
 
-        // Give a moment for the call audio stream to stabilize
+        // Give a moment for the call line to finish connecting, then start conversation
         serviceScope.launch {
-            delay(1000)
+            delay(1500)
             startJarvisConversation(callerInfo)
         }
     }
 
     private fun startJarvisConversation(callerInfo: CallerInfo) {
+        // Enforce speakerphone ON and max call volume after telephony state transition settles
+        try {
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            if (audioManager != null) {
+                audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+                audioManager.isSpeakerphoneOn = true
+                val maxVoice = audioManager.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL)
+                audioManager.setStreamVolume(AudioManager.STREAM_VOICE_CALL, maxVoice, 0)
+                val maxMusic = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, maxMusic, 0)
+                Log.i(tag, "🔊 Re-enforced MODE_IN_COMMUNICATION + Speakerphone ON at MAX volume for active call conversation")
+            }
+        } catch (e: Throwable) {
+            Log.w(tag, "Error setting in-call audio mode in startJarvisConversation", e)
+        }
+
         // Configure voice engine for active call audio stream (USAGE_VOICE_COMMUNICATION + speakerphone)
         voiceEngine.setInCallAudioAttributes(true)
 
