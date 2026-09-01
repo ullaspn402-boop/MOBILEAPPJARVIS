@@ -107,6 +107,7 @@ class SmartCallService : Service() {
     private var autoAnswerJob: Job? = null
     private var callStartTimeMs: Long = 0L
     private var isJarvisHandlingCall = false
+    private var originalRingerVolume: Int = -1
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -162,10 +163,12 @@ class SmartCallService : Service() {
                 if (!isJarvisHandlingCall) {
                     Log.d(tag, "Call answered manually — Jarvis stepping back")
                     cancelAutoAnswer()
+                    restoreRingerVolume()
                     transitionTo(CallState.CallActive(currentCallerInfo ?: unknownCaller()))
                 }
             }
             ACTION_CALL_ENDED -> {
+                restoreRingerVolume()
                 handleCallEnded()
             }
             ACTION_USER_COMMAND -> {
@@ -182,6 +185,7 @@ class SmartCallService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         try {
+            restoreRingerVolume()
             conversationAgent = null
             voiceEngine.destroy()
             serviceScope.cancel()
@@ -227,14 +231,62 @@ class SmartCallService : Service() {
             currentCallerInfo = callerInfo
             callStartTimeMs = System.currentTimeMillis()
 
+            // Launch CallOverlayActivity HUD
+            launchCallOverlay(callerInfo)
+
             transitionTo(CallState.IncomingCall(
                 callerNumber = callerInfo.number,
                 callerName = callerInfo.displayName,
                 isKnownContact = callerInfo.isKnownContact
             ))
 
+            // Duck ringer volume so SpeechRecognizer can hear user voice commands clearly
+            duckRingerVolume()
+
             // Announce the caller
             announceCaller(callerInfo)
+        }
+    }
+
+    private fun launchCallOverlay(callerInfo: CallerInfo) {
+        try {
+            val overlayIntent = Intent(applicationContext, com.aistudio.jarvis.voiceagent.ui.call.CallOverlayActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra(BROADCAST_EXTRA_CALLER_NAME, callerInfo.displayName ?: callerInfo.number)
+                putExtra(BROADCAST_EXTRA_CALLER_NUMBER, callerInfo.number)
+            }
+            applicationContext.startActivity(overlayIntent)
+            Log.i(tag, "✅ Launched CallOverlayActivity HUD for incoming call")
+        } catch (e: Throwable) {
+            Log.e(tag, "Failed launching CallOverlayActivity", e)
+        }
+    }
+
+    private fun duckRingerVolume() {
+        try {
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            if (audioManager != null && originalRingerVolume == -1) {
+                originalRingerVolume = audioManager.getStreamVolume(AudioManager.STREAM_RING)
+                val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_RING)
+                val targetVol = (maxVol * 0.25f).toInt().coerceAtLeast(1)
+                audioManager.setStreamVolume(AudioManager.STREAM_RING, targetVol, 0)
+                Log.i(tag, "🔉 Ducked ringer volume from $originalRingerVolume to $targetVol for voice recognition")
+            }
+        } catch (e: Throwable) {
+            Log.w(tag, "Could not duck ringer volume", e)
+        }
+    }
+
+    private fun restoreRingerVolume() {
+        try {
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            if (audioManager != null && originalRingerVolume != -1) {
+                audioManager.setStreamVolume(AudioManager.STREAM_RING, originalRingerVolume, 0)
+                Log.i(tag, "🔊 Restored ringer volume to $originalRingerVolume")
+                originalRingerVolume = -1
+            }
+        } catch (e: Throwable) {
+            Log.w(tag, "Could not restore ringer volume", e)
         }
     }
 
@@ -281,6 +333,19 @@ class SmartCallService : Service() {
             executeCommand(command, callerInfo, text)
         }
 
+        // Automatic re-listen loop during call ringing if silence or timeout occurs
+        voiceEngine.onListeningCancelled = {
+            if (_callState.value is CallState.WaitingForCommand) {
+                serviceScope.launch {
+                    delay(500)
+                    if (_callState.value is CallState.WaitingForCommand) {
+                        Log.d(tag, "Re-listening for user command during call ringing...")
+                        voiceEngine.startListening()
+                    }
+                }
+            }
+        }
+
         voiceEngine.startListening()
 
         // Auto-answer countdown
@@ -300,6 +365,7 @@ class SmartCallService : Service() {
 
     private fun executeCommand(command: CallCommand, callerInfo: CallerInfo, rawText: String) {
         cancelAutoAnswer()
+        restoreRingerVolume()
         voiceEngine.stopListening()
 
         when (command) {
